@@ -13,15 +13,13 @@ class DevicesTable extends StatelessWidget {
     required this.employees,
     required this.isEmployeesLoading,
     required this.onRetry,
-    required this.allowedDepartments,
     required this.canModify,
-    required this.onUpdateDepartment,
     required this.onAssignEmployee,
     required this.onUpdateStatus,
     required this.onShowDetails,
     required this.onDeleteDevice,
     required this.onUpdateCost,
-    required this.onPrintLabel,
+    required this.onPrintCompact,
   });
 
   final List<Device> devices;
@@ -30,17 +28,18 @@ class DevicesTable extends StatelessWidget {
   final List<String> employees;
   final bool isEmployeesLoading;
   final Future<void> Function() onRetry;
-  final List<String> allowedDepartments;
   final bool Function(Device device) canModify;
-  final Future<String?> Function(String deviceId, String department)
-      onUpdateDepartment;
   final Future<String?> Function(String deviceId, String employee)
       onAssignEmployee;
-  final Future<String?> Function(String deviceId, String status) onUpdateStatus;
+  final Future<String?> Function(Device device, String status) onUpdateStatus;
   final void Function(Device device) onShowDetails;
   final Future<String?> Function(String deviceId) onDeleteDevice;
-  final Future<String?> Function(String deviceId, String cost) onUpdateCost;
-  final Future<String?> Function(Device device) onPrintLabel;
+  final Future<String?> Function(
+    String deviceId,
+    String cost,
+    String costCurrency,
+  ) onUpdateCost;
+  final Future<String?> Function(Device device, String note) onPrintCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -79,9 +78,7 @@ class DevicesTable extends StatelessWidget {
               DataColumn(label: Text('العطل')),
               DataColumn(label: Text('التاريخ')),
               DataColumn(label: Text('الوقت')),
-              DataColumn(label: Text('القسم')),
               DataColumn(label: Text('الموظف')),
-              DataColumn(label: Text('الأولوية')),
               DataColumn(label: Text('الحالة')),
               DataColumn(label: Text('تاريخ التسليم')),
               DataColumn(label: Text('التكلفة')),
@@ -115,51 +112,12 @@ class DevicesTable extends StatelessWidget {
         DataCell(Text(device.issue)),
         DataCell(Text(_formatDate(device))),
         DataCell(Text(_formatTime(device))),
-        DataCell(_buildDepartmentCell(context, device, editable)),
         DataCell(_buildEmployeeCell(context, device, editable)),
-        DataCell(_PriorityIndicator(label: device.priorityColor)),
         DataCell(_buildStatusCell(context, device, editable)),
         DataCell(_buildDeliveredCell(device)),
         DataCell(_buildCostCell(context, device, editable)),
         DataCell(_buildOptionsCell(context, device, editable)),
       ],
-    );
-  }
-
-  Widget _buildDepartmentCell(
-    BuildContext context,
-    Device device,
-    bool editable,
-  ) {
-    if (!editable) {
-      return Text(device.department);
-    }
-
-    return SizedBox(
-      width: 140,
-      child: DropdownButton<String>(
-        value: device.department,
-        underline: const SizedBox.shrink(),
-        isExpanded: true,
-        items: allowedDepartments
-            .map(
-              (dept) =>
-                  DropdownMenuItem<String>(value: dept, child: Text(dept)),
-            )
-            .toList(),
-        onChanged: (value) async {
-          if (value == null || value == device.department) return;
-          final confirmed = await _confirmAction(
-            context,
-            'نقل الجهاز',
-            'هل تريد نقل الجهاز إلى قسم $value ؟ سيتم إزالته من هذه الشاشة.',
-          );
-          if (!confirmed) return;
-          final error = await onUpdateDepartment(device.id, value);
-          if (!context.mounted) return;
-          _showResult(context, error);
-        },
-      ),
     );
   }
 
@@ -239,7 +197,7 @@ class DevicesTable extends StatelessWidget {
             .toList(),
         onChanged: (value) async {
           if (value == null || value == device.status) return;
-          final error = await onUpdateStatus(device.id, value);
+          final error = await onUpdateStatus(device, value);
           if (!context.mounted) return;
           _showResult(context, error);
         },
@@ -256,12 +214,10 @@ class DevicesTable extends StatelessWidget {
       spacing: 8,
       children: [
         FilledButton.tonal(
-          onPressed: () => onShowDetails(device),
-          child: const Text('عرض'),
-        ),
-        FilledButton.tonal(
           onPressed: () async {
-            final error = await onPrintLabel(device);
+            final note = await _askNote(context);
+            if (note == null) return;
+            final error = await onPrintCompact(device, note);
             if (!context.mounted) return;
             _showResult(
               context,
@@ -294,35 +250,114 @@ class DevicesTable extends StatelessWidget {
     );
   }
 
+  Future<String?> _askNote(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ملاحظة قبل الطباعة'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(labelText: 'اكتب ملاحظة'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(ctrl.text.trim()),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    return result;
+  }
+
   Widget _buildCostCell(
     BuildContext context,
     Device device,
     bool editable,
   ) {
     if (!editable) {
-      return Text(device.cost.isEmpty ? '-' : device.cost);
+      final cost = device.cost.isEmpty ? '-' : device.cost;
+      final currency =
+          device.costCurrency.isEmpty ? '' : ' ${device.costCurrency}';
+      return Text('$cost$currency');
     }
 
     return SizedBox(
-      width: 100,
-      child: TextFormField(
-        key: ValueKey('${device.id}-cost'),
-        initialValue: device.cost,
-        textAlign: TextAlign.center,
-        decoration: const InputDecoration(
-          border: UnderlineInputBorder(),
-          isDense: true,
-        ),
-        keyboardType: TextInputType.number,
-        onFieldSubmitted: (value) async {
-          final error = await onUpdateCost(device.id, value.trim());
-          if (!context.mounted) return;
-          _showResult(
-            context,
-            error,
-            successMessage: 'تم حفظ التكلفة',
-          );
-        },
+      width: 200,
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: TextFormField(
+              key: ValueKey('${device.id}-cost'),
+              initialValue: device.cost,
+              textAlign: TextAlign.center,
+              decoration: const InputDecoration(
+                border: UnderlineInputBorder(),
+                isDense: true,
+              ),
+              keyboardType: TextInputType.number,
+              onFieldSubmitted: (value) async {
+                final error = await onUpdateCost(
+                  device.id,
+                  value.trim(),
+                  device.costCurrency.isEmpty ? 'الدولار' : device.costCurrency,
+                );
+                if (!context.mounted) return;
+                _showResult(
+                  context,
+                  error,
+                  successMessage: 'تم حفظ التكلفة',
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: DropdownButton<String>(
+              value: device.costCurrency.isEmpty
+                  ? 'الدولار'
+                  : device.costCurrency,
+              underline: const SizedBox.shrink(),
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(
+                  value: 'الدولار',
+                  child: Text('الدولار'),
+                ),
+                DropdownMenuItem(
+                  value: 'التركي',
+                  child: Text('التركي'),
+                ),
+                DropdownMenuItem(
+                  value: 'سوري',
+                  child: Text('سوري'),
+                ),
+              ],
+              onChanged: (value) async {
+                if (value == null || value == device.costCurrency) return;
+                final error = await onUpdateCost(
+                  device.id,
+                  device.cost,
+                  value,
+                );
+                if (!context.mounted) return;
+                _showResult(
+                  context,
+                  error,
+                  successMessage: 'تم حفظ العملة',
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -387,31 +422,6 @@ class DevicesTable extends StatelessWidget {
     final created = device.createdAt;
     if (created == null) return '-';
     return DateFormat('HH:mm', 'ar').format(created);
-  }
-}
-
-class _PriorityIndicator extends StatelessWidget {
-  const _PriorityIndicator({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = mapPriorityColor(label);
-    return Row(
-      children: [
-        Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(label.isEmpty ? '-' : label),
-      ],
-    );
   }
 }
 

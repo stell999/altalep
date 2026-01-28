@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نظام الدوام الأسبوعي - موظفين</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+:root{
+    --bg:#f6f8fb; --panel:#fff; --border:#d7dce2;
+    --acc:#0078ff; --ok:#00a676; --danger:#d9534f;
+    --text:#222; --secondary:#6c757d; --secondary-hover:#5a6268;
+}
+
+*{box-sizing:border-box;font-family:"Cairo",sans-serif;}
+body{margin:0;background:var(--bg);color:var(--text);}
+
+header{
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+    padding:1rem;
+    text-align:center;
+    font-weight:600;
+    font-size:1.2rem;
+    position:sticky;
+    top:0;
+}
+
+.container{max-width:1200px;margin:1rem auto;padding:1rem;}
+.grid{display:grid;gap:1rem;}
+@media(min-width:900px){.grid{grid-template-columns:1.1fr 1fr;}}
+
+.card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:1rem;
+    box-shadow:0 2px 4px rgba(0,0,0,.05);
+}
+
+h2{
+    margin-top:0;
+    font-size:1.1rem;
+    border-bottom:1px solid var(--border);
+    padding-bottom:.4rem;
+}
+
+.flex{display:flex;gap:.5rem;flex-wrap:wrap;}
+
+input,button,select{
+    font:inherit;
+    padding:.5rem .7rem;
+    border-radius:6px;
+    border:1px solid var(--border);
+}
+
+button{cursor:pointer;}
+
+.btn-primary{background:var(--acc);color:#fff;border:none;}
+.btn-ok{background:var(--ok);color:#fff;border:none;}
+.btn-danger{background:var(--danger);color:#fff;border:none;}
+.btn-secondary{background:var(--secondary);color:#fff;border:none;}
+.btn-secondary:hover{background:var(--secondary-hover);}
+
+table{width:100%;border-collapse:collapse;margin-top:.5rem;}
+th,td{
+    padding:.5rem;border-bottom:1px solid var(--border);text-align:center;
+}
+th{background:#f0f3f8;}
+
+.status{
+    padding:.6rem;border-radius:8px;
+    background:#eef3f8;margin-top:.5rem;
+}
+.status.ok{border:1px solid var(--ok);color:var(--ok);}
+.status.err{border:1px solid var(--danger);color:var(--danger);}
+
+.keypad{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:.4rem;
+    margin-top:.5rem;
+}
+.keypad button{
+    background:#f3f5f9;
+    border:1px solid var(--border);
+}
+
+.section{
+    margin-top:1rem;
+    border-top:1px dashed var(--border);
+    padding-top:1rem;
+}
+
+.small{font-size:.9rem;color:#555;}
+
+.qrCell{display:flex;flex-direction:column;align-items:center;}
+
+.hidden {
+    display: none;
+}
+
+.tabs {
+    display: flex;
+    background-color: #f0f3f8;
+    border-bottom: 1px solid var(--border);
+}
+
+.tab {
+    padding: 1rem;
+    cursor: pointer;
+    flex: 1;
+    text-align: center;
+    font-weight: 600;
+    border-left: 1px solid var(--border);
+}
+
+.tab:first-child {
+    border-left: none;
+}
+
+.tab.active {
+    background-color: var(--panel);
+    border-bottom: 2px solid var(--acc);
+}
+
+/* تنسيقات الطباعة والإيصال */
+#printReceipt { display: none; background: #fff; padding: 20px; direction: rtl; font-family: 'Cairo', sans-serif; color: #000; }
+#printReceipt h2 { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+#printReceipt table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+#printReceipt th, #printReceipt td { border: 1px solid #000; padding: 5px; text-align: center; }
+#printReceipt .summary { text-align: right; margin-top: 20px; font-size: 14px; line-height: 1.6; }
+#printReceipt .footer { margin-top: 50px; display: flex; justify-content: space-between; font-size: 12px; }
+
+@media print {
+    body > * { display: none !important; }
+    #printReceipt { display: block !important; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+    @page { size: A5; margin: 0; }
+}
+</style>
+</head>
+
+<body>
+
+<header>📅 نظام الدوام الأسبوعي للموظفين</header>
+
+<div class="tabs">
+    <div class="tab active" onclick="showPage('login')">تسجيل الدخول/الخروج</div>
+    <div class="tab" onclick="showPage('employees')">إدارة الموظفين</div>
+    <div class="tab" onclick="showPage('dashboard')">لوحة التحكم</div>
+</div>
+
+<div id="login" class="page">
+    <div class="container grid">
+        <!-- تسجيل -->
+        <section class="card">
+            <h2>تسجيل دخول / خروج</h2>
+            <p class="small">يمكن التسجيل 4 مرات يوميًا</p>
+
+            <label>اختر اليوم:</label>
+            <select id="manualDay" style="width:100%; margin-bottom:10px;">
+                <option value="السبت">السبت</option>
+                <option value="الأحد">الأحد</option>
+                <option value="الاثنين">الاثنين</option>
+                <option value="الثلاثاء">الثلاثاء</option>
+                <option value="الأربعاء">الأربعاء</option>
+                <option value="الخميس">الخميس</option>
+            </select>
+
+            <div class="flex">
+                <input type="text" id="scanInput" inputmode="numeric" placeholder="رقم الموظف">
+                <button class="btn-primary" id="btnRegister">تسجيل</button>
+                <button id="btnFocus">تنشيط</button>
+            </div>
+
+            <div class="keypad">
+                <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+                <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+                <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+                <button data-k="del">مسح</button><button data-k="0">0</button><button data-k="ok">إدخال</button>
+            </div>
+
+            <div class="section">
+                <h3>إدخال يدوي للدوام</h3>
+                <div class="flex">
+                    <select id="manualEmpSelect"></select>
+                    <select id="manualSessionSelect">
+                        <option value="1">الفترة الأولى</option>
+                        <option value="2">الفترة الثانية</option>
+                    </select>
+                    <input type="time" id="manualInTime" placeholder="وقت الدخول">
+                    <input type="time" id="manualOutTime" placeholder="وقت الخروج">
+                    <button class="btn-secondary" id="btnManualEntry">حفظ يدوي</button>
+                </div>
+                <p class="small">استخدم هذا الخيار لوضع أوقات الدخول/الخروج يدويًا عند تعطل الباركود.</p>
+            </div>
+
+            <div id="statusBox" class="status">جاهز...</div>
+        </section>
+    </div>
+</div>
+
+<div id="employees" class="page hidden">
+    <!-- إدارة الموظفين -->
+    <div class="container grid">
+        <section class="card">
+            <h2>إدارة الموظفين</h2>
+            <div class="flex">
+                <input type="text" id="empName" placeholder="اسم الموظف">
+                <input type="number" id="empSalary" placeholder="الراتب الأسبوعي (USD)">
+                <button class="btn-ok" id="btnAdd">إضافة موظف</button>
+            </div>
+
+            <table id="empTable">
+                <thead><tr><th>الاسم</th><th>الرقم</th><th>الراتب</th><th>QR</th><th>إجراء</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </section>
+    </div>
+</div>
+
+<div id="dashboard" class="page hidden">
+    <!-- لوحة التحكم -->
+    <div class="container card">
+        <h2>لوحة التحكم</h2>
+
+        <div class="flex">
+            <select id="empSelect"></select>
+            <input type="number" id="withdrawAmt" placeholder="قيمة السحب ($)">
+            <button class="btn-danger" id="btnWithdraw">إضافة سحب</button>
+            <button id="btnLunchBreak" class="btn-danger">🚪 خروج جماعي (1)</button>
+            <button id="btnReset">🔄 تصفير أسبوعي</button>
+            <button id="btnPrint" class="btn-primary">🖨️ طباعة A5</button>
+        </div>
+
+        <hr>
+
+        <div class="section">
+            <h3>جدول الدوام</h3>
+            <table id="attendanceTable">
+                <thead>
+                <tr>
+                    <th>اليوم</th>
+                    <th>الدخول</th>
+                    <th>الخروج</th>
+                    <th>الساعات</th>
+                    <th>الأجر</th>
+                </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>الملخص الأسبوعي</h3>
+            <p id="summaryText">—</p>
+            <button id="btnPdf" class="btn-primary">📄 PDF</button>
+        </div>
+
+        <div class="section">
+            <h3>جميع الموظفين</h3>
+            <button id="btnExportExcel" class="btn-primary">📤 تصدير إلى Excel</button>
+
+            <table id="allEmpTable">
+                <thead>
+                <tr>
+                    <th>الموظف</th>
+                    <th>السبت</th>
+                    <th>الأحد</th>
+                    <th>الاثنين</th>
+                    <th>الثلاثاء</th>
+                    <th>الأربعاء</th>
+                    <th>الخميس</th>
+                    <th>الساعات</th>
+                    <th>المستحق</th>
+                </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="printReceipt"></div>
+
+<script>
+function showPage(pageId) {
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(page => {
+        page.classList.add('hidden');
+    });
+
+    // Deactivate all tabs
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+
+    // Show the selected page
+    document.getElementById(pageId).classList.remove('hidden');
+
+    // Activate the selected tab
+    document.querySelector(`.tab[onclick="showPage('${pageId}')"]`).classList.add('active');
+}
+/* ------------------ الموظفون الثابتون ------------------- */
+const FIXED = {
+ "101001": {name:"سيعد عنداني", salaryUSD:75},
+ "101002": {name:"أحمد ميرش", salaryUSD:66},
+ "101003": {name:"جمال عجان حديد", salaryUSD:66},
+ "101004": {name:"عبد الوهاب", salaryUSD:55},
+ "101005": {name:"محمود حمادي", salaryUSD:66},
+ "101006": {name:"شعبان مصري", salaryUSD:30},
+ "101007": {name:"أبو إيهم", salaryUSD:55},
+ "101008": {name:"وائل بكداش", salaryUSD:45},
+ "101009": {name:"أبو كاسم", salaryUSD:60},
+ "101010": {name:"عمر مصري", salaryUSD:55},
+ "101011": {name:"مصطفى سفراني", salaryUSD:66},
+ "101012": {name:"عدنان ميرش", salaryUSD:45},
+ "101013": {name:"عبد الحنان", salaryUSD:30},
+ "101014": {name:"حسين", salaryUSD:30},
+ "101015": {name:"أحمد حج خلف", salaryUSD:30},
+ "101016": {name:"شواخ", salaryUSD:45},
+ "101017": {name:"عمر وديعة", salaryUSD:55},
+ "101018": {name:"عبد الفتاح", salaryUSD:28},
+ "101019": {name:"مصطفى حمادي", salaryUSD:30},
+ "101020": {name:"عبد الغني نجار", salaryUSD:45},
+ "101021": {name:"أم عدنان", salaryUSD:30},
+ "101022": {name:"غادة", salaryUSD:30},
+ "101023": {name:"وفاء", salaryUSD:30},
+ "101024": {name:"حسين الجبلي", salaryUSD:55}
+};
+
+let data = JSON.parse(localStorage.getItem("attData") || "{}");
+
+if (!data.emps) {
+    data = { emps: FIXED, logs:{}, withdraws:{} };
+    localStorage.setItem("attData", JSON.stringify(data));
+}
+
+const days=["السبت","الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس"];
+const MIN_LOGOUT_MINUTES=15;
+
+function saveData(){localStorage.setItem("attData",JSON.stringify(data));}
+
+const scanInput = document.querySelector("#login #scanInput");
+const statusBox = document.querySelector("#login #statusBox");
+const empSelect = document.querySelector("#dashboard #empSelect");
+const manualEmpSelect=document.querySelector("#login #manualEmpSelect");
+const manualSessionSelect=document.querySelector("#login #manualSessionSelect");
+const manualInTime=document.querySelector("#login #manualInTime");
+const manualOutTime=document.querySelector("#login #manualOutTime");
+const summaryText = document.querySelector("#dashboard #summaryText");
+
+function setStatus(msg,t=""){statusBox.textContent=msg; statusBox.className="status "+t;}
+
+function randId(){
+    let id;
+    do{id=Math.floor(200000+Math.random()*900000).toString();}
+    while(data.emps[id]);
+    return id;
+}
+
+/* ------------------ جدول الموظفين ------------------- */
+function refreshEmpTable(){
+    const tb=document.querySelector("#empTable tbody");
+    tb.innerHTML=""; 
+    const old=empSelect.value; 
+    empSelect.innerHTML="";
+    const manualOld=manualEmpSelect?manualEmpSelect.value:"";
+    if(manualEmpSelect) manualEmpSelect.innerHTML='<option value="">اختر الموظف</option>';
+
+    Object.entries(data.emps).forEach(([id,emp])=>{
+        const tr=document.createElement("tr");
+        tr.innerHTML=`
+            <td>${emp.name}</td>
+            <td>${id}</td>
+            <td>${emp.salaryUSD}</td>
+            <td class="qrCell" id="qr${id}"></td>
+            <td><button class="btn-danger" onclick="delEmp('${id}')">حذف</button></td>
+        `;
+        tb.appendChild(tr);
+
+        const div=document.createElement("div");
+        document.getElementById("qr"+id).appendChild(div);
+        new QRCode(div,{text:id,width:60,height:60});
+
+        const btn=document.createElement("button");
+        btn.textContent="تحميل";
+        btn.className="btn-primary small";
+        btn.onclick=()=>{const c=div.querySelector("canvas"); const a=document.createElement("a"); a.href=c.toDataURL(); a.download=emp.name+".png"; a.click();}
+        document.getElementById("qr"+id).appendChild(btn);
+
+        const opt=document.createElement("option");
+        opt.value=id; 
+        opt.textContent=`${emp.name} (${id})`; 
+        empSelect.appendChild(opt);
+
+        if(manualEmpSelect){
+            const mOpt=document.createElement("option");
+            mOpt.value=id;
+            mOpt.textContent=`${emp.name} (${id})`;
+            manualEmpSelect.appendChild(mOpt);
+        }
+    });
+
+    if(data.emps[old]) empSelect.value=old;
+    if(manualEmpSelect&&manualOld&&data.emps[manualOld]) manualEmpSelect.value=manualOld;
+
+    updateAttendanceTable();
+}
+
+/* ------------------ حذف موظف ------------------- */
+/* ------------------ حفظ اليوم المختار ------------------- */
+
+// عند تغيير اليوم يتم حفظه
+document.getElementById("manualDay").addEventListener("change", () => {
+    localStorage.setItem("selectedDay", document.getElementById("manualDay").value);
+});
+
+// عند فتح الصفحة يتم استرجاع اليوم السابق
+const savedDay = localStorage.getItem("selectedDay");
+if (savedDay) {
+    document.getElementById("manualDay").value = savedDay;
+}
+
+function delEmp(id){
+    delete data.emps[id];
+    saveData(); 
+    refreshAllTables();
+}
+
+/* ------------------ إضافة الموظف ------------------- */
+document.getElementById("btnAdd").addEventListener('click', () => {
+    const n = document.getElementById('empName').value.trim();
+    const s = Number(document.getElementById('empSalary').value);
+    if (!n || !s) {
+        alert("الرجاء ملء الحقول");
+        return;
+    }
+    const id = randId();
+    data.emps[id] = {
+        name: n,
+        salaryUSD: s
+    };
+    saveData();
+    refreshAllTables();
+    document.getElementById('empName').value = "";
+    document.getElementById('empSalary').value = "";
+});
+
+/* ------------------ تسجيل دخول/خروج ------------------- */
+let lastScanTimes={};
+
+function handleScan(id){
+    const emp=data.emps[id];
+    if(!emp){setStatus("❌ رقم غير معروف","err"); return;}
+    if(Date.now()-(lastScanTimes[id]||0)<3000){setStatus("⏳ أعد المحاولة بعد قليل","err"); return;}
+    lastScanTimes[id]=Date.now();
+
+    const now=new Date();
+    const time=now.toTimeString().slice(0,5);
+    const day = document.getElementById("manualDay").value;
+
+    if(!data.logs[id]) data.logs[id]={};
+    const log=data.logs[id][day]||{};
+
+    if(!log.in1){log.in1=time; setStatus(`دخول أول: ${emp.name}`,"ok");}
+    else if(!log.out1){
+        if(!canLogout(log.in1,time)){setStatus(`يجب مرور ${MIN_LOGOUT_MINUTES} دقيقة على الأقل قبل الخروج`,"err"); return;}
+        log.out1=time; setStatus(`خروج أول: ${emp.name}`,"ok");
+    }
+    else if(!log.in2){log.in2=time; setStatus(`دخول ثاني: ${emp.name}`,"ok");}
+    else if(!log.out2){
+        if(!canLogout(log.in2,time)){setStatus(`يجب مرور ${MIN_LOGOUT_MINUTES} دقيقة على الأقل قبل الخروج`,"err"); return;}
+        log.out2=time; setStatus(`خروج نهائي: ${emp.name}`,"ok");
+    }
+    else { setStatus("اليوم مكتمل","err"); return;}
+
+    data.logs[id][day]=log;
+    saveData(); refreshAllTables();
+}
+
+
+document.querySelector("#login #btnRegister").onclick = () => {
+    if (scanInput.value.trim()) handleScan(scanInput.value.trim());
+    scanInput.value = "";
+};
+scanInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") document.querySelector("#login #btnRegister").click();
+});
+document.querySelector("#login #btnFocus").onclick = () => scanInput.focus();
+document.querySelectorAll("#login .keypad button").forEach(b => {
+    b.onclick = () => {
+        const k = b.dataset.k;
+        if (k === "del") scanInput.value = "";
+        else if (k === "ok") document.querySelector("#login #btnRegister").click();
+        else scanInput.value += k;
+        scanInput.focus();
+    }
+});
+
+document.querySelector("#login #btnManualEntry").onclick=()=>{
+    if(!manualEmpSelect)return;
+    const id=manualEmpSelect.value;
+    if(!id){setStatus("اختر موظفًا للتعديل","err");return;}
+    const day=document.getElementById("manualDay").value;
+    const period=manualSessionSelect.value;
+    const inTime=manualInTime.value;
+    const outTime=manualOutTime.value;
+    if(!inTime && !outTime){setStatus("أدخل وقتًا واحدًا على الأقل","err");return;}
+
+    if(!data.logs[id]) data.logs[id]={};
+    const log=data.logs[id][day]||{};
+    if(period==="1"){
+        if(inTime) log.in1=inTime;
+        if(outTime) log.out1=outTime;
+    }else{
+        if(inTime) log.in2=inTime;
+        if(outTime) log.out2=outTime;
+    }
+    data.logs[id][day]=log;
+    saveData();
+    refreshAllTables();
+    manualInTime.value="";
+    manualOutTime.value="";
+    setStatus("تم تعديل السجل يدويًا","ok");
+};
+
+/* ------------------ الوقت والأجر ------------------- */
+function parseTime(t){const[a,b]=t.split(":");return (+a)*60+(+b);}
+function diffHours(a,b){if(!a||!b)return 0; return Math.max(0,(parseTime(b)-parseTime(a))/60);}
+function canLogout(inTime,outTime){if(!inTime||!outTime) return false; return parseTime(outTime)-parseTime(inTime)>=MIN_LOGOUT_MINUTES;}
+function calcPay(id,day){
+    const emp=data.emps[id]; const log=(data.logs[id]||{})[day]; if(!log) return 0;
+    const base=emp.salaryUSD/(6*10*60); let total=0;
+    [[log.in1,log.out1],[log.in2,log.out2]].forEach(([i,o])=>{
+        if(!i||!o) return;
+        const s=parseTime(i), e=parseTime(o);
+        const extra=parseTime("18:00");
+        for(let m=s;m<e;m++){total+=base*(m>=extra?2:1);}
+    });
+    return total;
+}
+
+/* ------------------ جدول الحضور ------------------- */
+function updateAttendanceTable(){
+    const id=empSelect.value;
+    const tb=document.querySelector("#attendanceTable tbody");
+    tb.innerHTML=""; if(!id) return;
+
+    let total=0;
+    days.forEach(d=>{
+        const log=(data.logs[id]||{})[d]||{};
+        const h=diffHours(log.in1,log.out1)+diffHours(log.in2,log.out2);
+        const p=calcPay(id,d);
+        total+=p;
+        tb.innerHTML+=`<tr><td>${d}</td><td>${log.in1||"—"} / ${log.in2||"—"}</td><td>${log.out1||"—"} / ${log.out2||"—"}</td><td>${h.toFixed(2)}</td><td>${p.toFixed(2)}</td></tr>`;
+    });
+
+    const w=(data.withdraws[id]||[]).reduce((a,b)=>a+b,0);
+    summaryText.innerHTML=`الإجمالي: <b>${total.toFixed(2)}</b> $<br>السحب: <b>${w}</b>$<br>الصافي: <b>${(total-w).toFixed(2)}</b> $`;
+}
+
+/* ------------------ جدول جميع الموظفين ------------------- */
+function updateAllEmpTable(){
+    const tb=document.querySelector("#allEmpTable tbody");
+    tb.innerHTML="";
+    Object.entries(data.emps).forEach(([id,emp])=>{
+        let totalH=0,totalP=0,row=`<td>${emp.name}</td>`;
+        days.forEach(d=>{
+            const log=(data.logs[id]||{})[d]||{};
+            const h=diffHours(log.in1,log.out1)+diffHours(log.in2,log.out2);
+            const p=calcPay(id,d);
+            totalH+=h; totalP+=p;
+            row+=`<td>${h.toFixed(2)}</td>`;
+        });
+        const w=(data.withdraws[id]||[]).reduce((a,b)=>a+b,0);
+        row+=`<td>${totalH.toFixed(2)}</td><td>${(totalP-w).toFixed(2)}</td>`;
+        tb.innerHTML+=`<tr>${row}</tr>`;
+    });
+}
+
+/* ------------------ تحديث شامل ------------------- */
+function refreshAllTables(){refreshEmpTable(); updateAllEmpTable(); updateAttendanceTable();}
+document.querySelector("#dashboard #empSelect").onchange = updateAttendanceTable;
+document.querySelector("#dashboard #btnWithdraw").onclick = () => {
+    const id = empSelect.value;
+    const amt = Number(document.querySelector("#dashboard #withdrawAmt").value);
+    if (!id || !amt) return;
+    if (!data.withdraws[id]) data.withdraws[id] = [];
+    data.withdraws[id].push(amt);
+    document.querySelector("#dashboard #withdrawAmt").value = "";
+    saveData();
+    updateAttendanceTable();
+    updateAllEmpTable();
+};
+
+document.querySelector("#dashboard #btnReset").onclick = () => {
+    if (!confirm("هل تريد فعلاً تصفير جميع الحضور لهذا الأسبوع؟")) return;
+    data.logs = {};
+    data.withdraws = {};
+    saveData();
+    refreshAllTables();
+};
+
+function generateReceiptHTML(id) {
+    const emp = data.emps[id];
+    let html = `<h2>كشف حساب أسبوعي</h2>
+    <p><b>الموظف:</b> ${emp.name}</p>
+    <p><b>التاريخ:</b> ${new Date().toLocaleDateString('ar-EG')}</p>
+    <table>
+        <thead>
+            <tr>
+                <th>اليوم</th>
+                <th>دخول</th>
+                <th>خروج</th>
+                <th>ساعات</th>
+                <th>أجر</th>
+            </tr>
+        </thead>
+        <tbody>`;
+    
+    let totalH = 0, totalP = 0;
+    days.forEach(d => {
+        const log = (data.logs[id] || {})[d] || {};
+        const h = diffHours(log.in1, log.out1) + diffHours(log.in2, log.out2);
+        const p = calcPay(id, d);
+        totalH += h;
+        totalP += p;
+        html += `<tr>
+            <td>${d}</td>
+            <td>${log.in1 || "-"} / ${log.in2 || "-"}</td>
+            <td>${log.out1 || "-"} / ${log.out2 || "-"}</td>
+            <td>${h.toFixed(2)}</td>
+            <td>${p.toFixed(2)}</td>
+        </tr>`;
+    });
+
+    const w = (data.withdraws[id] || []).reduce((a, b) => a + b, 0);
+    const net = totalP - w;
+
+    html += `</tbody></table>
+    <div class="summary">
+        <div>إجمالي الساعات: <b>${totalH.toFixed(2)}</b></div>
+        <div>إجمالي المستحق: <b>${totalP.toFixed(2)} $</b></div>
+        <div>المسحوبات: <b>${w.toFixed(2)} $</b></div>
+        <div style="font-size:16px; border-top:1px solid #000; padding-top:5px; margin-top:5px;">الصافي للدفع: <b>${net.toFixed(2)} $</b></div>
+    </div>
+    <div class="footer">
+        <div>توقيع الموظف: ....................</div>
+        <div>توقيع المدير: ....................</div>
+    </div>`;
+    return html;
+}
+
+document.querySelector("#dashboard #btnPdf").onclick = () => {
+    const id = empSelect.value;
+    if (!id) return;
+    
+    const r = document.getElementById("printReceipt");
+    r.innerHTML = generateReceiptHTML(id);
+    r.style.display = "block";
+    r.style.width = "148mm"; // A5 width
+
+    html2canvas(r, {scale: 2}).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jspdf.jsPDF('p', 'mm', 'a5');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(data.emps[id].name + ".pdf");
+        r.style.display = "none";
+    });
+};
+
+document.querySelector("#dashboard #btnPrint").onclick = () => {
+    const id = empSelect.value;
+    if (!id) { alert("اختر موظفاً أولاً"); return; }
+    const r = document.getElementById("printReceipt");
+    r.innerHTML = generateReceiptHTML(id);
+    window.print();
+};
+
+document.querySelector("#dashboard #btnExportExcel").onclick = () => {
+    let csv = "الموظف," + days.join(",") + " ,الساعات,المستحق\n";
+    Object.entries(data.emps).forEach(([id, emp]) => {
+        let totalH = 0,
+            totalP = 0,
+            row = [emp.name];
+        days.forEach(d => {
+            const log = (data.logs[id] || {})[d] || {};
+            const h = diffHours(log.in1, log.out1) + diffHours(log.in2, log.out2);
+            const p = calcPay(id, d);
+            totalH += h;
+            totalP += p;
+            row.push(h.toFixed(2));
+        });
+        const w = (data.withdraws[id] || []).reduce((a, b) => a + b, 0);
+        row.push(totalH.toFixed(2), (totalP - w).toFixed(2));
+        csv += row.join(",") + "\n";
+    });
+    const a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+    a.download = "employees.csv";
+    a.click();
+};
+
+document.querySelector("#dashboard #btnLunchBreak").onclick = () => {
+    const day = document.getElementById("manualDay").value;
+    if (!confirm("هل أنت متأكد من تسجيل خروج جماعي (الخروج الأول) للموظفين الذين لم يغادروا في يوم " + day + "؟")) return;
+
+    const now = new Date();
+    const time = now.toTimeString().slice(0, 5);
+
+    Object.keys(data.emps).forEach(id => {
+        if (!data.logs[id]) return;
+        const log = data.logs[id][day];
+        // إذا سجل دخول (in1) ولم يسجل خروج (out1)
+        if (log && log.in1 && !log.out1) {
+            log.out1 = time;
+        }
+    });
+    saveData();
+    refreshAllTables();
+};
+
+/* ------------------ بداية ------------------- */
+refreshAllTables();
+</script>
+
+</body>
+</html>

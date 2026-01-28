@@ -7,6 +7,7 @@ import '../domain/user_role.dart';
 import '../models/device.dart';
 import '../models/device_input.dart';
 import '../services/device_label_service.dart';
+import '../services/export_service.dart';
 import 'light_dashboard_state.dart';
 
 class LightDashboardController extends StateNotifier<LightDashboardState> {
@@ -212,12 +213,20 @@ class LightDashboardController extends StateNotifier<LightDashboardState> {
     }
   }
 
-  Future<String?> updateCost(String deviceId, String cost) async {
+  Future<String?> updateCost(
+    String deviceId,
+    String cost,
+    String costCurrency,
+  ) async {
     try {
-      await _repository.updateDeviceCost(deviceId: deviceId, cost: cost);
+      await _repository.updateDeviceCost(
+        deviceId: deviceId,
+        cost: cost,
+        costCurrency: costCurrency,
+      );
       final updatedDevices = state.devices.map((device) {
         if (device.id == deviceId) {
-          return device.copyWith(cost: cost);
+          return device.copyWith(cost: cost, costCurrency: costCurrency);
         }
         return device;
       }).toList();
@@ -238,16 +247,32 @@ class LightDashboardController extends StateNotifier<LightDashboardState> {
     }
   }
 
+  Future<String?> printCompactLabel(Device device, String note) async {
+    try {
+      await _labelService.printCompactLabel40x20(
+        device: device,
+        userNote: note,
+      );
+      return null;
+    } catch (error, stack) {
+      debugPrint('Failed to print compact label: $error\n$stack');
+      return 'تعذر طباعة الملصق الصغير.';
+    }
+  }
+
   Future<String?> migrateDeliveredDevices() async {
     if (!isAdmin) {
       return 'هذا الإجراء مخصص للمشرف فقط.';
     }
     try {
-      await _repository.migrateDeliveredDevices();
-      await fetchDevices();
-      return null;
+      final csv = _buildDevicesCsv(state.devices);
+      final filename =
+          'devices_backup_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final service = ExportService();
+      final result = await service.exportCsv(filename, csv);
+      return result;
     } catch (error) {
-      return 'لم يتم ترحيل الأجهزة. تأكد من إعداد دالة Supabase.';
+      return 'تعذر إنشاء النسخة الاحتياطية.';
     }
   }
 
@@ -263,6 +288,7 @@ class LightDashboardController extends StateNotifier<LightDashboardState> {
             status: input.status,
             priorityColor: input.priorityColor,
             cost: input.cost,
+            costCurrency: input.costCurrency,
           );
     state = state.copyWith(isSubmittingDevice: true, clearDeviceActionError: true);
     try {
@@ -375,4 +401,47 @@ class LightDashboardController extends StateNotifier<LightDashboardState> {
 
   String _formatTime(DateTime date) =>
       '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+  String _buildDevicesCsv(List<Device> devices) {
+    String csvEscape(String value) {
+      final v = value.replaceAll('"', '""');
+      if (v.contains(',') || v.contains('\n')) {
+        return '"$v"';
+      }
+      return v;
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln([
+      'ID',
+      'اسم الزبون',
+      'اسم الجهاز',
+      'القسم',
+      'الموظف',
+      'الحالة',
+      'العطل',
+      'التكلفة',
+      'العملة',
+      'تاريخ الإنشاء',
+      'تاريخ التسليم',
+      'وقت التسليم',
+    ].join(','));
+    for (final d in devices) {
+      buffer.writeln([
+        d.id,
+        csvEscape(d.customerName),
+        csvEscape(d.deviceName),
+        csvEscape(d.department),
+        csvEscape(d.employeeName),
+        csvEscape(d.status),
+        csvEscape(d.issue),
+        csvEscape(d.cost),
+        csvEscape(d.costCurrency),
+        d.createdAt?.toIso8601String() ?? '',
+        d.deliveredDate,
+        d.deliveredTime,
+      ].join(','));
+    }
+    return buffer.toString();
+  }
 }

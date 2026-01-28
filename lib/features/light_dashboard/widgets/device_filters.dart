@@ -41,7 +41,7 @@ class DeviceFilters extends StatelessWidget {
         TextField(
           controller: searchController,
           decoration: const InputDecoration(
-            labelText: 'بحث باسم الزبون',
+            labelText: 'بحث باسم الزبون أو بالرقم #',
             prefixIcon: Icon(Icons.search),
           ),
           onChanged: onSearchChanged,

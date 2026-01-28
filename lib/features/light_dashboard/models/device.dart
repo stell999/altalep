@@ -13,6 +13,7 @@ class Device {
     required this.deliveredDate,
     required this.deliveredTime,
     required this.cost,
+    required this.costCurrency,
     required this.createdAt,
   });
 
@@ -29,6 +30,7 @@ class Device {
   final String deliveredDate;
   final String deliveredTime;
   final String cost;
+  final String costCurrency;
   final DateTime? createdAt;
 
   bool get hasAssignedEmployee => employeeName.isNotEmpty;
@@ -51,6 +53,7 @@ class Device {
       deliveredDate: (map['deliveredDate'] ?? '') as String,
       deliveredTime: (map['deliveredTime'] ?? '') as String,
       cost: (map['cost'] ?? '') as String,
+      costCurrency: (map['costCurrency'] ?? 'الدولار') as String,
       createdAt: createdValue == null
           ? null
           : DateTime.tryParse('$createdValue'),
@@ -72,6 +75,7 @@ class Device {
       'deliveredDate': deliveredDate,
       'deliveredTime': deliveredTime,
       'cost': cost,
+      'costCurrency': costCurrency,
       'created_at': createdAt?.toIso8601String(),
     };
   }
@@ -81,6 +85,7 @@ class Device {
     String? employeeName,
     String? status,
     String? cost,
+    String? costCurrency,
     String? deliveredDate,
     String? deliveredTime,
   }) {
@@ -98,6 +103,7 @@ class Device {
       deliveredDate: deliveredDate ?? this.deliveredDate,
       deliveredTime: deliveredTime ?? this.deliveredTime,
       cost: cost ?? this.cost,
+      costCurrency: costCurrency ?? this.costCurrency,
       createdAt: createdAt,
     );
   }

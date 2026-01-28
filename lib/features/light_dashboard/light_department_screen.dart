@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
-import 'constants/light_constants.dart';
+import '../../core/models/daily_cash_entry.dart';
+import '../../core/providers/daily_cash_provider.dart';
 import 'domain/user_role.dart';
 import 'models/device.dart';
 import 'notifiers/light_dashboard_controller.dart';
@@ -13,6 +14,7 @@ import 'widgets/devices_table.dart';
 import 'widgets/employee_management_panel.dart';
 import 'widgets/light_sidebar.dart';
 import 'widgets/password_dialog.dart';
+import '../pos_dashboard/pos_dashboard_screen.dart';
 
 class LightDepartmentScreen extends ConsumerStatefulWidget {
   const LightDepartmentScreen({
@@ -83,6 +85,13 @@ class _LightDepartmentScreenState
                 onNavigateBack: controller.isAdmin
                     ? () => _handleBackToDashboard()
                     : null,
+                onOpenPosDashboardTab: (tab) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PosDashboardScreen(initialTab: tab),
+                    ),
+                  );
+                },
               ),
             ),
             const VerticalDivider(width: 1),
@@ -176,17 +185,21 @@ class _LightDepartmentScreenState
                                 employees: state.employeeNames,
                                 isEmployeesLoading: state.isLoadingEmployees,
                                 onRetry: controller.fetchDevices,
-                                allowedDepartments: LightConstants.departments,
                                 canModify: controller.canModify,
-                                onUpdateDepartment:
-                                    controller.updateDepartment,
                                 onAssignEmployee: controller.updateEmployee,
-                                onUpdateStatus: controller.updateStatus,
+                                onUpdateStatus: (device, status) =>
+                                    _handleStatusChange(
+                                      context,
+                                      controller,
+                                      device,
+                                      status,
+                                    ),
                                 onShowDetails: (device) =>
                                     _showDeviceDetails(context, controller, device),
                                 onDeleteDevice: controller.deleteDevice,
                                 onUpdateCost: controller.updateCost,
-                                onPrintLabel: controller.printLabel,
+                                onPrintCompact: (device, note) =>
+                                    controller.printCompactLabel(device, note),
                               ),
                             ),
                           ],
@@ -253,16 +266,16 @@ class _LightDepartmentScreenState
             if (controller.isAdmin)
               FilledButton.icon(
                 onPressed: () async {
-                  final error = await controller.migrateDeliveredDevices();
+                  final path = await controller.migrateDeliveredDevices();
                   if (!context.mounted) return;
-                  _showSnack(
-                    context,
-                    error ?? 'تم ترحيل الأجهزة المسلمة',
-                    error != null,
-                  );
+                  if (path == null) {
+                    _showSnack(context, 'تعذر إنشاء النسخة الاحتياطية', true);
+                  } else {
+                    _showSnack(context, 'تم حفظ النسخة الاحتياطية: $path', false);
+                  }
                 },
-                icon: const Icon(Icons.move_down),
-                label: const Text('ترحيل الأجهزة التي تم تسليمها'),
+                icon: const Icon(Icons.backup),
+                label: const Text('نسخ احتياطي للأجهزة (Excel/CSV)'),
               ),
           ],
         ),
@@ -286,6 +299,153 @@ class _LightDepartmentScreenState
     }
   }
 
+  Future<String?> _handleStatusChange(
+    BuildContext context,
+    LightDashboardController controller,
+    Device device,
+    String status,
+  ) async {
+    if (status != 'تم التسليم') {
+      return controller.updateStatus(device.id, status);
+    }
+
+    final result = await _showDeliveryCostDialog(context, device);
+    if (result == null) {
+      return 'تم إلغاء تحديث الحالة';
+    }
+
+    final updatedCost = result.useOriginal ? device.cost : result.cost;
+    final updatedCurrency =
+        result.useOriginal ? device.costCurrency : result.currency;
+
+    final cost = updatedCost.trim().isEmpty ? '0' : updatedCost.trim();
+    final currency = updatedCurrency.trim().isEmpty
+        ? 'الدولار'
+        : updatedCurrency.trim();
+
+    if (cost != device.cost || currency != device.costCurrency) {
+      final costError = await controller.updateCost(
+        device.id,
+        cost,
+        currency,
+      );
+      if (costError != null) return costError;
+    }
+
+    final statusError = await controller.updateStatus(device.id, status);
+    if (statusError != null) return statusError;
+
+    final entry = DailyCashEntry(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      currency: currency,
+      receipt: cost,
+      payment: '0',
+      description: 'تسليم جهاز #${device.id} - ${device.deviceName}',
+      createdAt: DateTime.now(),
+    );
+    await ref.read(dailyCashControllerProvider.notifier).addEntry(entry);
+
+    return null;
+  }
+
+  Future<_DeliveryCostResult?> _showDeliveryCostDialog(
+    BuildContext context,
+    Device device,
+  ) async {
+    final costController = TextEditingController(text: device.cost);
+    var currency =
+        device.costCurrency.isEmpty ? 'الدولار' : device.costCurrency;
+
+    final result = await showDialog<_DeliveryCostResult>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('تأكيد تكلفة التسليم'),
+              content: SizedBox(
+                width: 320,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: costController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'التكلفة',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey(currency),
+                      initialValue: currency,
+                      decoration: const InputDecoration(
+                        labelText: 'عملة التكلفة',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'الدولار',
+                          child: Text('الدولار'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'التركي',
+                          child: Text('التركي'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'سوري',
+                          child: Text('سوري'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          currency = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('إلغاء'),
+                ),
+                FilledButton.tonal(
+                  onPressed: () {
+                    Navigator.of(context).pop(
+                      _DeliveryCostResult(
+                        cost: device.cost,
+                        currency: device.costCurrency,
+                        useOriginal: true,
+                      ),
+                    );
+                  },
+                  child: const Text('تأكيد نفس الرقم'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(
+                      _DeliveryCostResult(
+                        cost: costController.text.trim(),
+                        currency: currency,
+                        useOriginal: false,
+                      ),
+                    );
+                  },
+                  child: const Text('تعديل الرقم'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    costController.dispose();
+    return result;
+  }
+
   Future<void> _showDeviceDetails(
     BuildContext context,
     LightDashboardController controller,
@@ -304,7 +464,12 @@ class _LightDepartmentScreenState
               _detailRow('القسم', device.department),
               _detailRow('الحالة', device.status),
               _detailRow('العطل', device.issue),
-              _detailRow('التكلفة', device.cost.isEmpty ? '-' : device.cost),
+              _detailRow(
+                'التكلفة',
+                device.cost.isEmpty
+                    ? '-'
+                    : '${device.cost} ${device.costCurrency}',
+              ),
             ],
           ),
           actions: [
@@ -356,4 +521,16 @@ class _LightDepartmentScreenState
       ),
     );
   }
+}
+
+class _DeliveryCostResult {
+  const _DeliveryCostResult({
+    required this.cost,
+    required this.currency,
+    required this.useOriginal,
+  });
+
+  final String cost;
+  final String currency;
+  final bool useOriginal;
 }

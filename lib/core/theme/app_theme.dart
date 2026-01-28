@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   /// Global logo asset used throughout the application (e.g., splash/sidebar).
-  static const String logoAsset = 'assets/logo.png';
+  static const String logoAsset = 'lib/icons/logo.png';
 
   static ThemeData build() {
     final baseScheme = ColorScheme.fromSeed(

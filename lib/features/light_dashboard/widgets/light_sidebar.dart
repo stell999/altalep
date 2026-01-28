@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../constants/light_constants.dart';
 
 class LightSidebar extends StatelessWidget {
@@ -9,12 +10,24 @@ class LightSidebar extends StatelessWidget {
     required this.isAdminView,
     required this.statusCounts,
     this.onNavigateBack,
+    this.onOpenPosDashboard,
+    this.onOpenPosDashboardTab,
   });
 
   final String currentDepartment;
   final bool isAdminView;
   final Map<String, int> statusCounts;
   final VoidCallback? onNavigateBack;
+  final VoidCallback? onOpenPosDashboard;
+  final ValueChanged<int>? onOpenPosDashboardTab;
+
+  void _openTab(int index) {
+    if (onOpenPosDashboardTab != null) {
+      onOpenPosDashboardTab!(index);
+    } else {
+      onOpenPosDashboard?.call();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +40,7 @@ class LightSidebar extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.asset(
-              'assets/logo.png',
+              AppTheme.logoAsset,
               height: 80,
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) => const Icon(
@@ -45,6 +58,41 @@ class LightSidebar extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
           ),
+          if (onOpenPosDashboard != null || onOpenPosDashboardTab != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              'اختصارات',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Colors.grey[700],
+                    fontWeight: FontWeight.w600,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            _ShortcutButton(
+              label: 'الشاشات والبوردات',
+              icon: Icons.devices,
+              onPressed: () => _openTab(3),
+            ),
+            const SizedBox(height: 8),
+            _ShortcutButton(
+              label: 'نظام الدوام',
+              icon: Icons.print,
+              onPressed: () => _openTab(2),
+            ),
+            const SizedBox(height: 8),
+            _ShortcutButton(
+              label: 'الصندوق اليومية',
+              icon: Icons.account_balance_wallet,
+              onPressed: () => _openTab(1),
+            ),
+            const SizedBox(height: 8),
+            _ShortcutButton(
+              label: 'حسابي',
+              icon: Icons.person,
+              onPressed: () => _openTab(0),
+            ),
+          ],
           // if (isAdminView) ...[
           //   const SizedBox(height: 16),
           //   FilledButton(
@@ -109,6 +157,30 @@ class _StatusRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ShortcutButton extends StatelessWidget {
+  const _ShortcutButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.tonalIcon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
     );
   }

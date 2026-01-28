@@ -8,6 +8,7 @@ class DeviceInput {
     required this.status,
     required this.priorityColor,
     required this.cost,
+    required this.costCurrency,
   });
 
   final String customerName;
@@ -18,6 +19,7 @@ class DeviceInput {
   final String status;
   final String priorityColor;
   final String cost;
+  final String costCurrency;
 
   Map<String, dynamic> toJson() {
     return {
@@ -29,6 +31,7 @@ class DeviceInput {
       'status': status,
       'priorityColor': priorityColor,
       'cost': cost,
+      'costCurrency': costCurrency,
     };
   }
 }

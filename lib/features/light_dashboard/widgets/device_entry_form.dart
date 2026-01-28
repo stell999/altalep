@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../constants/light_constants.dart';
 import '../models/device_input.dart';
+import '../services/device_label_service.dart';
+import 'package:pdf/pdf.dart';
 
 class DeviceEntryForm extends StatefulWidget {
   const DeviceEntryForm({
@@ -39,7 +41,8 @@ class _DeviceEntryFormState extends State<DeviceEntryForm> {
   late String _departmentValue;
   late String _employeeValue;
   String _statusValue = LightConstants.statusOptions.first;
-  String _priorityValue = LightConstants.priorityColors.first;
+  final String _priorityValue = LightConstants.priorityColors.first;
+  String _costCurrency = 'الدولار';
 
   @override
   void initState() {
@@ -53,8 +56,7 @@ class _DeviceEntryFormState extends State<DeviceEntryForm> {
   @override
   void didUpdateWidget(DeviceEntryForm oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.defaultDepartment != widget.defaultDepartment &&
-        !widget.isAdmin) {
+    if (oldWidget.defaultDepartment != widget.defaultDepartment) {
       _departmentValue = widget.defaultDepartment;
     }
   }
@@ -125,28 +127,6 @@ class _DeviceEntryFormState extends State<DeviceEntryForm> {
                   SizedBox(
                     width: 220,
                     child: DropdownButtonFormField<String>(
-                      initialValue: _departmentValue,
-                      decoration: const InputDecoration(labelText: 'القسم'),
-                      items: LightConstants.departments
-                          .map(
-                            (dept) => DropdownMenuItem(
-                              value: dept,
-                              child: Text(dept),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: widget.isAdmin
-                          ? (value) {
-                              if (value != null) {
-                                setState(() => _departmentValue = value);
-                              }
-                            }
-                          : null,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 220,
-                    child: DropdownButtonFormField<String>(
                       initialValue: _employeeValue.isEmpty ? null : _employeeValue,
                       decoration: const InputDecoration(labelText: 'الموظف'),
                       items: {
@@ -192,26 +172,6 @@ class _DeviceEntryFormState extends State<DeviceEntryForm> {
                   ),
                   SizedBox(
                     width: 220,
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _priorityValue,
-                      decoration: const InputDecoration(labelText: 'الأولوية'),
-                      items: LightConstants.priorityColors
-                          .map(
-                            (color) => DropdownMenuItem(
-                              value: color,
-                              child: Text(color),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _priorityValue = value);
-                        }
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: 220,
                     child: TextFormField(
                       controller: _costCtrl,
                       decoration: const InputDecoration(
@@ -219,6 +179,35 @@ class _DeviceEntryFormState extends State<DeviceEntryForm> {
                         prefixText: '₪ ',
                       ),
                       keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 140,
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _costCurrency,
+                      decoration: const InputDecoration(
+                        labelText: 'عملة التكلفة',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'الدولار',
+                          child: Text('الدولار'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'التركي',
+                          child: Text('التركي'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'سوري',
+                          child: Text('سوري'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _costCurrency = value;
+                        });
+                      },
                     ),
                   ),
                 ],
@@ -269,6 +258,7 @@ class _DeviceEntryFormState extends State<DeviceEntryForm> {
       status: _statusValue,
       priorityColor: _priorityValue,
       cost: _costCtrl.text.trim(),
+      costCurrency: _costCurrency,
     );
     final error = await widget.onSubmit(input);
     if (error == null) {
@@ -278,6 +268,70 @@ class _DeviceEntryFormState extends State<DeviceEntryForm> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم حفظ الجهاز بنجاح')),
+        );
+        await _showPrintDialog(input);
+      }
+    }
+  }
+
+  Future<void> _showPrintDialog(DeviceInput input) async {
+    final noteCtrl = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('طباعة بعد الحفظ'),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: noteCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظة يدوياً قبل الطباعة',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _handlePrint(input, noteCtrl.text.trim());
+              },
+              child: const Text('طباعة'),
+            ),
+          ],
+        );
+      },
+    );
+    noteCtrl.dispose();
+  }
+
+  Future<void> _handlePrint(
+    DeviceInput input,
+    String note,
+  ) async {
+    try {
+      await DeviceLabelService().printCompactLabel40x20FromInput(
+        input: input,
+        userNote: note,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إرسال أمر الطباعة')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('حدث خطأ أثناء الطباعة')),
         );
       }
     }
