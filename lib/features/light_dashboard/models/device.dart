@@ -15,9 +15,11 @@ class Device {
     required this.cost,
     required this.costCurrency,
     required this.createdAt,
+    this.customerId,
   });
 
   final String id;
+  final String? customerId;
   final String customerName;
   final String deviceName;
   final String issue;
@@ -57,12 +59,14 @@ class Device {
       createdAt: createdValue == null
           ? null
           : DateTime.tryParse('$createdValue'),
+      customerId: map['customer_id'] != null ? '${map['customer_id']}' : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'customer_id': customerId,
       'customerName': customerName,
       'deviceName': deviceName,
       'issue': issue,
@@ -88,9 +92,11 @@ class Device {
     String? costCurrency,
     String? deliveredDate,
     String? deliveredTime,
+    String? customerId,
   }) {
     return Device(
       id: id,
+      customerId: customerId ?? this.customerId,
       customerName: customerName,
       deviceName: deviceName,
       issue: issue,

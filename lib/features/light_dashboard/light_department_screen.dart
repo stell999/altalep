@@ -200,6 +200,8 @@ class _LightDepartmentScreenState
                                 onUpdateCost: controller.updateCost,
                                 onPrintCompact: (device, note) =>
                                     controller.printCompactLabel(device, note),
+                                onLoadMore: controller.loadMoreDevices,
+                                hasMore: state.hasMore,
                               ),
                             ),
                           ],

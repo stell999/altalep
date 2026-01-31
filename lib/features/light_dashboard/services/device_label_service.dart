@@ -183,6 +183,7 @@ class DeviceLabelService {
         final bytes = await document.save();
         return Uint8List.fromList(bytes);
       },
+      format: format,
     );
   }
 
@@ -244,6 +245,10 @@ class DeviceLabelService {
         final bytes = await document.save();
         return Uint8List.fromList(bytes);
       },
+      format: const PdfPageFormat(
+        40 * PdfPageFormat.mm,
+        20 * PdfPageFormat.mm,
+      ),
     );
   }
 

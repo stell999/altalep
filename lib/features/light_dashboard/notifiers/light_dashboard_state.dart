@@ -38,6 +38,8 @@ class LightDashboardState {
   final String? deviceActionError;
   final bool isEmployeeOperationLoading;
   final String? employeeOperationMessage;
+  final int page;
+  final bool hasMore;
 
   List<String> get employeeNames =>
       employees.map((employee) => employee.name).toList();
@@ -113,6 +115,8 @@ class LightDashboardState {
       employeeOperationMessage: clearEmployeeOperationMessage
           ? null
           : (employeeOperationMessage ?? this.employeeOperationMessage),
+      page: page ?? this.page,
+      hasMore: hasMore ?? this.hasMore,
     );
   }
 }

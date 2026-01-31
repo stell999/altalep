@@ -16,7 +16,7 @@ class DatabaseService {
     final db = await databaseFactoryFfi.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 3,
         onCreate: (db, version) async {
           await db.execute('''
           CREATE TABLE devices (
@@ -34,13 +34,18 @@ class DatabaseService {
             delivered_time TEXT,
             cost TEXT,
             cost_currency TEXT,
-            created_at TEXT
+            created_at TEXT,
+            customer_id INTEGER
           );
           ''');
           await db.execute('CREATE INDEX idx_devices_department ON devices(department);');
           await db.execute('CREATE INDEX idx_devices_status ON devices(status);');
           await db.execute('CREATE INDEX idx_devices_employee ON devices(employee_name);');
           await db.execute('CREATE INDEX idx_devices_created ON devices(created_at);');
+          await db.execute('CREATE INDEX idx_devices_customer_id ON devices(customer_id);');
+          await db.execute('CREATE INDEX idx_devices_customer_name ON devices(customer_name);');
+          await db.execute('CREATE INDEX idx_devices_device_name ON devices(device_name);');
+
           await db.execute('''
           CREATE TABLE screen_boards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,10 +59,82 @@ class DatabaseService {
           ''');
           await db.execute('CREATE INDEX idx_screen_boards_board ON screen_boards(board);');
           await db.execute('CREATE INDEX idx_screen_boards_model ON screen_boards(model);');
+
+          await db.execute('''
+          CREATE TABLE customers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE
+          );
+          ''');
+          await db.execute('CREATE INDEX idx_customers_name ON customers(name);');
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            // 1. Create customers table
+            await db.execute('''
+            CREATE TABLE customers (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT UNIQUE
+            );
+            ''');
+            await db.execute('CREATE INDEX idx_customers_name ON customers(name);');
+
+            // 2. Add customer_id column to devices
+            await db.execute('ALTER TABLE devices ADD COLUMN customer_id INTEGER;');
+            await db.execute('CREATE INDEX idx_devices_customer_id ON devices(customer_id);');
+
+            // 3. Migrate existing customers
+            final devices = await db.query('devices', columns: ['customer_name']);
+            final uniqueNames = devices
+                .map((d) => (d['customer_name'] as String?)?.trim() ?? '')
+                .where((n) => n.isNotEmpty)
+                .toSet();
+
+            for (final name in uniqueNames) {
+              final id = await db.insert(
+                'customers',
+                {'name': name},
+                conflictAlgorithm: ConflictAlgorithm.ignore,
+              );
+              if (id > 0) {
+                 await db.update(
+                  'devices',
+                  {'customer_id': id},
+                  where: 'customer_name = ?',
+                  whereArgs: [name],
+                );
+              }
+            }
+          }
+          
+          if (oldVersion < 3) {
+            // Optimize search performance
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_devices_customer_name ON devices(customer_name);');
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_devices_device_name ON devices(device_name);');
+          }
         },
       ),
     );
     return DatabaseService._(db, path);
+  }
+
+  Future<int> _getOrCreateCustomer(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return 0;
+    
+    final result = await _db.query(
+      'customers',
+      columns: ['id'],
+      where: 'name = ?',
+      whereArgs: [trimmed],
+      limit: 1,
+    );
+
+    if (result.isNotEmpty) {
+      return result.first['id'] as int;
+    }
+
+    return await _db.insert('customers', {'name': trimmed});
   }
 
   Future<List<Device>> queryDevices({
@@ -78,8 +155,9 @@ class DatabaseService {
     final trimmedSearch = (searchTerm ?? '').trim();
     if (trimmedSearch.isNotEmpty) {
       final normalized = trimmedSearch.replaceAll('#', '').trim();
-      where.add('(customer_name LIKE ? OR CAST(id AS TEXT) LIKE ?)');
+      where.add('(customer_name LIKE ? OR CAST(id AS TEXT) LIKE ? OR CAST(customer_id AS TEXT) LIKE ?)');
       args.add('%$trimmedSearch%');
+      args.add('%$normalized%');
       args.add('%$normalized%');
     }
     if (statusFilter != null && statusFilter != 'الكل') {
@@ -113,6 +191,10 @@ class DatabaseService {
   Future<Device> insertDevice(DeviceInput input, DateTime now) async {
     final date = _formatDate(now);
     final time = _formatTime(now);
+    
+    // Get or create customer ID
+    final customerId = await _getOrCreateCustomer(input.customerName);
+
     final id = await _db.insert('devices', {
       'customer_name': input.customerName,
       'device_name': input.deviceName,
@@ -128,6 +210,7 @@ class DatabaseService {
       'cost': input.cost,
       'cost_currency': input.costCurrency,
       'created_at': now.toIso8601String(),
+      'customer_id': customerId > 0 ? customerId : null,
     });
     return Device(
       id: '$id',
@@ -145,6 +228,7 @@ class DatabaseService {
       cost: input.cost,
       costCurrency: input.costCurrency,
       createdAt: now,
+      customerId: customerId > 0 ? '$customerId' : null,
     );
   }
 
@@ -194,6 +278,7 @@ class DatabaseService {
       createdAt: (row['created_at'] == null)
           ? null
           : DateTime.tryParse('${row['created_at']}'),
+      customerId: row['customer_id'] != null ? '${row['customer_id']}' : null,
     );
   }
 

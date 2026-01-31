@@ -56,9 +56,19 @@ class LightDashboardController extends StateNotifier<LightDashboardState> {
     }
   }
 
-  Future<void> fetchDevices() async {
-    state = state.copyWith(isLoadingDevices: true, clearDevicesError: true);
+  Future<void> fetchDevices({bool loadMore = false}) async {
+    if (loadMore && !state.hasMore) return;
+    
+    // Only show loading indicator for initial load or if explicitly needed
+    if (!loadMore) {
+      state = state.copyWith(isLoadingDevices: true, clearDevicesError: true);
+    }
+    
     try {
+      final page = loadMore ? state.page + 1 : 1;
+      final limit = 50;
+      final offset = (page - 1) * limit;
+
       final devices = await _repository.fetchDevices(
         department: _resolveDepartmentQuery(),
         searchTerm: state.searchTerm,
@@ -67,12 +77,19 @@ class LightDashboardController extends StateNotifier<LightDashboardState> {
         employeeFilter: state.employeeFilter == 'الكل'
             ? null
             : state.employeeFilter,
+        limit: limit,
+        offset: offset,
       );
-      final statusCounts = _deriveStatusCounts(devices);
+
+      final allDevices = loadMore ? [...state.devices, ...devices] : devices;
+      final statusCounts = _deriveStatusCounts(allDevices);
+      
       state = state.copyWith(
-        devices: devices,
+        devices: allDevices,
         isLoadingDevices: false,
         statusCounts: statusCounts,
+        page: page,
+        hasMore: devices.length >= limit,
       );
     } catch (error, stack) {
       debugPrint('Failed to load devices: $error\n$stack');
@@ -81,6 +98,10 @@ class LightDashboardController extends StateNotifier<LightDashboardState> {
         devicesError: 'تعذر تحميل الأجهزة. حاول التحديث.',
       );
     }
+  }
+
+  Future<void> loadMoreDevices() async {
+    await fetchDevices(loadMore: true);
   }
 
   Map<String, int> _deriveStatusCounts(List<Device> devices) {
@@ -294,7 +315,8 @@ class LightDashboardController extends StateNotifier<LightDashboardState> {
     try {
       await _repository.createDevice(sanitizedInput);
       state = state.copyWith(isSubmittingDevice: false);
-      await fetchDevices();
+      // Reset to first page to show the new device at top
+      await fetchDevices(loadMore: false);
       return null;
     } catch (error) {
       state = state.copyWith(
@@ -429,6 +451,7 @@ class LightDashboardController extends StateNotifier<LightDashboardState> {
     for (final d in devices) {
       buffer.writeln([
         d.id,
+        d.customerId ?? '',
         csvEscape(d.customerName),
         csvEscape(d.deviceName),
         csvEscape(d.department),

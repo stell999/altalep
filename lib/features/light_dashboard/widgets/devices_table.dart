@@ -20,6 +20,8 @@ class DevicesTable extends StatelessWidget {
     required this.onDeleteDevice,
     required this.onUpdateCost,
     required this.onPrintCompact,
+    this.onLoadMore,
+    this.hasMore = false,
   });
 
   final List<Device> devices;
@@ -40,6 +42,8 @@ class DevicesTable extends StatelessWidget {
     String costCurrency,
   ) onUpdateCost;
   final Future<String?> Function(Device device, String note) onPrintCompact;
+  final VoidCallback? onLoadMore;
+  final bool hasMore;
 
   @override
   Widget build(BuildContext context) {
@@ -72,9 +76,10 @@ class DevicesTable extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
             columns: const [
-              DataColumn(label: Text('#')),
+              DataColumn(label: Text('رقم الجهاز')),
+              DataColumn(label: Text('رقم الزبون')),
               DataColumn(label: Text('اسم الزبون')),
-              DataColumn(label: Text('اسم الجهاز')),
+              DataColumn(label: Text('نوع الجهاز')),
               DataColumn(label: Text('العطل')),
               DataColumn(label: Text('التاريخ')),
               DataColumn(label: Text('الوقت')),
@@ -106,8 +111,12 @@ class DevicesTable extends StatelessWidget {
     final editable = canModify(device);
     return DataRow(
       cells: [
-        DataCell(Text('$index')),
-        DataCell(Text(device.formattedCustomer)),
+        DataCell(Text(device.id)),
+        DataCell(Text(
+          device.customerId != null ? '#${device.customerId}' : '-',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        )),
+        DataCell(Text(device.customerName)),
         DataCell(Text(device.deviceName)),
         DataCell(Text(device.issue)),
         DataCell(Text(_formatDate(device))),

@@ -265,6 +265,7 @@ class _DeviceEntryFormState extends State<DeviceEntryForm> {
       _customerCtrl.clear();
       _deviceCtrl.clear();
       _issueCtrl.clear();
+      _costCtrl.clear();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم حفظ الجهاز بنجاح')),
