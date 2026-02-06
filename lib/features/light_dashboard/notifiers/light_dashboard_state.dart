@@ -20,6 +20,8 @@ class LightDashboardState {
     required this.deviceActionError,
     required this.isEmployeeOperationLoading,
     required this.employeeOperationMessage,
+    required this.page,
+    required this.hasMore,
   });
 
   final List<Device> devices;
@@ -64,6 +66,8 @@ class LightDashboardState {
       deviceActionError: null,
       isEmployeeOperationLoading: false,
       employeeOperationMessage: null,
+      page: 1,
+      hasMore: true,
     );
   }
 
@@ -89,6 +93,8 @@ class LightDashboardState {
     bool? isEmployeeOperationLoading,
     String? employeeOperationMessage,
     bool clearEmployeeOperationMessage = false,
+    int? page,
+    bool? hasMore,
   }) {
     return LightDashboardState(
       devices: devices ?? this.devices,

@@ -29,6 +29,8 @@ class LightDepartmentRepository {
     DateTime? selectedDate,
     String? statusFilter,
     String? employeeFilter,
+    int? limit,
+    int? offset,
   }) async {
     await _ensureInitialized();
     if (_dbFuture != null) {
@@ -39,6 +41,8 @@ class LightDepartmentRepository {
         selectedDate: selectedDate,
         statusFilter: statusFilter,
         employeeFilter: employeeFilter,
+        limit: limit,
+        offset: offset,
       );
       return List<Device>.unmodifiable(devices);
     }
@@ -76,6 +80,14 @@ class LightDepartmentRepository {
         (a, b) => (b.createdAt ?? DateTime.now())
             .compareTo(a.createdAt ?? DateTime.now()),
       );
+    
+    if (offset != null && limit != null) {
+      final start = offset;
+      if (start >= filtered.length) return [];
+      final end = (start + limit) > filtered.length ? filtered.length : (start + limit);
+      return List<Device>.unmodifiable(filtered.sublist(start, end));
+    }
+
     return List<Device>.unmodifiable(filtered);
   }
 
